@@ -30,7 +30,7 @@ public extension Tweak where T: Comparable {
 			collectionName: collectionName,
 			groupName: groupName,
 			tweakName: tweakName,
-			defaultValue: customDefaultValue ?? defaultParameters.defaultValue,
+            defaultValue: .static(value: customDefaultValue ?? defaultParameters.defaultValue),
 			minimumValue: defaultParameters.minValue,
 			maximumValue: defaultParameters.maxValue,
 			stepSize: defaultParameters.stepSize

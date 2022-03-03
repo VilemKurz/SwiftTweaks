@@ -14,16 +14,28 @@ import UIKit
 /// Because each T needs a UI component, we have to restrict what T can be - hence T: TweakableType.
 /// If T: Comparable, you can declare a min / max / stepSize for a Tweak.
 public struct Tweak<T: TweakableType> {
+    enum DefaultValue {
+        case `static`(value: T)
+        case `dynamic`(closure: () -> T)
+
+        var value: T {
+            switch self {
+            case .static(let value): return value
+            case .dynamic(let closure): return closure()
+            }
+        }
+    }
 	public let collectionName: String
 	public let groupName: String
 	public let tweakName: String
-	internal let defaultValue: T
+	private let _defaultValue: DefaultValue
+    internal var defaultValue: T { _defaultValue.value }
 	internal let minimumValue: T?	// Only supported for T: Comparable
 	internal let maximumValue: T?	// Only supported for T: Comparable
 	internal let stepSize: T?		// Only supported for T: Comparable
 	internal let options: [T]?		// Only supported for T: StringOption
 
-	internal init(collectionName: String, groupName: String, tweakName: String, defaultValue: T, minimumValue: T? = nil, maximumValue: T? = nil, stepSize: T? = nil, options: [T]? = nil) {
+	internal init(collectionName: String, groupName: String, tweakName: String, defaultValue: DefaultValue, minimumValue: T? = nil, maximumValue: T? = nil, stepSize: T? = nil, options: [T]? = nil) {
 
 		[collectionName, groupName, tweakName].forEach {
 			if $0.contains(TweakIdentifierSeparator) {
@@ -34,7 +46,7 @@ public struct Tweak<T: TweakableType> {
 		self.collectionName = collectionName
 		self.groupName = groupName
 		self.tweakName = tweakName
-		self.defaultValue = defaultValue
+        self._defaultValue = defaultValue
 		self.minimumValue = minimumValue
 		self.maximumValue = maximumValue
 		self.stepSize = stepSize
@@ -50,16 +62,16 @@ extension Tweak {
 			collectionName: collectionName,
 			groupName: groupName,
 			tweakName: tweakName,
-			defaultValue: defaultValue
+            defaultValue: .static(value: defaultValue)
 		)
 	}
 	
-	public init(_ collectionName: String, _ groupName: String, _ tweakName: String, _ defaultValueProvider: () -> T) {
+    public init(_ collectionName: String, _ groupName: String, _ tweakName: String, _ defaultValueProvider: @escaping () -> T) {
 		self.init(
 			collectionName: collectionName,
 			groupName: groupName,
-			tweakName: tweakName,
-			defaultValue: defaultValueProvider()
+            tweakName: tweakName,
+            defaultValue: .dynamic(closure: defaultValueProvider)
 		)
 	}
 
@@ -80,7 +92,7 @@ extension Tweak where T: Comparable {
 			collectionName: collectionName,
 			groupName: groupName,
 			tweakName: tweakName,
-			defaultValue: defaultValue,
+            defaultValue: .static(value: defaultValue),
 			minimumValue: minimumValue,
 			maximumValue: maximumValue,
 			stepSize: stepSize
@@ -100,7 +112,7 @@ extension Tweak where T == StringOption {
 			collectionName: collectionName,
 			groupName: groupName,
 			tweakName: tweakName,
-			defaultValue: StringOption(value: defaultValue ?? options[0]),
+            defaultValue: .static(value: StringOption(value: defaultValue ?? options[0])),
 			options: options.map(StringOption.init)
 		)
 	}
