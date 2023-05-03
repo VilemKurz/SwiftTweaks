@@ -21,15 +21,17 @@ internal class StringOptionViewController: UITableViewController {
 	
 	fileprivate var currentOption: String {
 		didSet {
-			tweakStore.setValue(
-				.stringList(
-					value: StringOption(value: currentOption),
-					defaultValue: tweak.defaultValue,
-					options: tweak.options ?? []
-				),
-				forTweak: AnyTweak(tweak: tweak)
-			)
-			self.tableView.reloadData()
+            Task {
+                await tweakStore.setValue(
+                    .stringList(
+                        value: StringOption(value: currentOption),
+                        defaultValue: tweak.defaultValue,
+                        options: tweak.options ?? []
+                    ),
+                    forTweak: AnyTweak(tweak: tweak)
+                )
+                await MainActor.run { self.tableView.reloadData() }
+            }
 		}
 	}
 	

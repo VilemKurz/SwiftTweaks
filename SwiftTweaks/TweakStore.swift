@@ -114,20 +114,21 @@ public final class TweakStore {
 
 	// MARK: - Internal
 	
-	/// Resets all tweaks to their `defaultValue`
-	internal func reset() {
-		persistence.clearAllData()
-
-		// Go through all tweaks in our library, and call any bindings they're attached to.
-		tweakCollections.values.reduce([]) { $0 + $1.sortedTweakGroups.reduce([]) { $0 + $1.sortedTweaks } }
-			.forEach { updateBindingsForTweak($0)
-		}
-
-	}
+    /// Resets all tweaks to their `defaultValue`
+    internal func reset() async {
+        await persistence.clearAllData()
+        await MainActor.run {
+            // Go through all tweaks in our library, and call any bindings they're attached to.
+            tweakCollections.values.reduce([]) { $0 + $1.sortedTweakGroups.reduce([]) { $0 + $1.sortedTweaks } }
+                .forEach { updateBindingsForTweak($0) }
+        }
+    }
 
 	internal func currentValueForTweak<T>(_ tweak: Tweak<T>) -> T {
 		if allTweaks.contains(AnyTweak(tweak: tweak)) {
-			return enabled ? persistence.currentValueForTweak(tweak) ?? tweak.defaultValue : tweak.defaultValue
+            let result = enabled ? persistence.currentValueForTweak(tweak) ?? tweak.defaultValue : tweak.defaultValue
+            NSLog("value of \(tweak.tweakName): is \(result)")
+            return result
 		} else {
 			print("Error: the tweak \"\(tweak.tweakIdentifier)\" isn't included in the tweak store \"\(storeName)\". Returning the default value.")
 			return tweak.defaultValue
@@ -165,17 +166,35 @@ public final class TweakStore {
 		}
 	}
 	
-	internal func setValue<T>(_ value: T?, forTweak tweak: Tweak<T>) {
+    internal func setValue<T>(_ value: T?, forTweak tweak: Tweak<T>) async {
 		let anyTweak = AnyTweak(tweak: tweak)
-		persistence.setValue(value, forTweakIdentifiable: anyTweak)
-		updateBindingsForTweak(anyTweak)
+		await persistence.setValue(value, forTweakIdentifiable: anyTweak)
+        await MainActor.run { updateBindingsForTweak(anyTweak) }
 	}
 
-	internal func setValue(_ viewData: TweakViewData, forTweak tweak: AnyTweak) {
-		persistence.setValue(viewData.value, forTweakIdentifiable: tweak)
-		updateBindingsForTweak(tweak)
+    internal func setValue(_ viewData: TweakViewData, forTweak tweak: AnyTweak) async {
+		await persistence.setValue(viewData.value, forTweakIdentifiable: tweak)
+        await MainActor.run { updateBindingsForTweak(tweak) }
 	}
 
+    /// Takes existing bindings, clears them from tweaks not existing in the new store and moves them to the new store.
+    /// For use when you dynamically refresh available tweaks based on the app module configuration
+    public func moveAllExistingBindings(to newStore: TweakStore) {
+        let refreshedBindings = tweakBindings.filter { key, value in
+            newStore.allTweaks.contains(key)
+        }
+        newStore.tweakBindings = refreshedBindings
+        var refreshedMultiBindings = [Set<AnyTweak>: [MultiTweakBinding]]()
+        tweakSetBindings.forEach { tweaksSet, multiBindings in
+            let refreshedTweaksSet = tweaksSet.filter {
+                newStore.allTweaks.contains($0)
+            }
+            if !refreshedTweaksSet.isEmpty {
+                refreshedMultiBindings[refreshedTweaksSet] = multiBindings
+            }
+        }
+        newStore.tweakSetBindings = refreshedMultiBindings
+    }
 
 	// MARK - Private
 

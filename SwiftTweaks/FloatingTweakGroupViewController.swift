@@ -8,7 +8,6 @@
 
 import UIKit
 
-
 // MARK: - FloatingTweaksWindowPresenter
 
 internal protocol FloatingTweaksWindowPresenter {
@@ -38,7 +37,7 @@ internal final class FloatingTweakGroupViewController: UIViewController {
 	}
 
 	private let presenter: FloatingTweaksWindowPresenter
-	fileprivate let tweakStore: TweakStore
+	private var tweakStore: TweakStore
 	private let fullFrame: CGRect
 	fileprivate let hapticsPlayer = HapticsPlayer()
 
@@ -79,6 +78,16 @@ internal final class FloatingTweakGroupViewController: UIViewController {
 
 		layoutSubviews()
 	}
+
+    func display(_ tweakStore: TweakStore) {
+        guard tweakStore.sortedTweakCollections.contains(where: { $0.sortedTweakGroups.contains(where: { $0.title == tweakGroup?.title })}) else {
+            // our group was removed, bailing out
+            closeButtonTapped()
+            return
+        }
+        self.tweakStore = tweakStore
+        tableView.animatedReloadData()
+    }
 
 	// MARK: Subviews
 
@@ -383,13 +392,11 @@ extension FloatingTweakGroupViewController: UITableViewDataSource {
 // MARK: TweakTableCellDelegate
 
 extension FloatingTweakGroupViewController: TweakTableCellDelegate {
-	func tweakCellDidChangeCurrentValue(_ tweakCell: TweakTableCell) {
-		if
-			let indexPath = tableView.indexPath(for: tweakCell),
-			let viewData = tweakCell.viewData,
-			let tweak = tweakAtIndexPath(indexPath)
-		{
-			tweakStore.setValue(viewData, forTweak: tweak)
-		}
-	}
+    func tweakCellDidChangeCurrentValue(_ tweakCell: TweakTableCell) {
+        if let indexPath = tableView.indexPath(for: tweakCell),
+           let viewData = tweakCell.viewData,
+           let tweak = tweakAtIndexPath(indexPath) {
+            Task { await tweakStore.setValue(viewData, forTweak: tweak) }
+        }
+    }
 }

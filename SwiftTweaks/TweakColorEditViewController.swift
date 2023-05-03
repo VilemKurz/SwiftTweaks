@@ -14,22 +14,25 @@ internal protocol TweakColorEditViewControllerDelegate: AnyObject {
 
 /// A fullscreen color editor with hex, RGBa, and HSBa controls
 internal final class TweakColorEditViewController: UIViewController {
-	private let tweak: Tweak<UIColor>
-	private let tweakStore: TweakStore
-	private unowned var delegate: TweakColorEditViewControllerDelegate
+    private let tweak: Tweak<UIColor>
+    private let tweakStore: TweakStore
+    private unowned var delegate: TweakColorEditViewControllerDelegate
 
-	fileprivate var viewData: ColorRepresentation {
-		didSet {
-			if oldValue.type != viewData.type {
-				segmentedControl.selectedSegmentIndex = viewData.type.rawValue
-				tableView.reloadData()
-			}
-
-			tweakStore.setValue(.color(value: viewData.color, defaultValue: tweak.defaultValue), forTweak: AnyTweak(tweak: tweak))
-
-			updateColorPreview()
-		}
-	}
+    fileprivate var viewData: ColorRepresentation {
+        didSet {
+            if oldValue.type != viewData.type {
+                segmentedControl.selectedSegmentIndex = viewData.type.rawValue
+                tableView.reloadData()
+            }
+            Task {
+                await tweakStore.setValue(
+                    .color(value: viewData.color, defaultValue: tweak.defaultValue),
+                    forTweak: AnyTweak(tweak: tweak)
+                )
+                await MainActor.run { updateColorPreview() }
+            }
+        }
+    }
 
 	private var colorRepresentationType: ColorRepresentationType {
 		set {

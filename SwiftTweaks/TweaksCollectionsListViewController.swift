@@ -18,7 +18,7 @@ internal protocol TweaksCollectionsListViewControllerDelegate: AnyObject {
 internal final class TweaksCollectionsListViewController: UIViewController {
 	private let tableView: UITableView
 
-	fileprivate let tweakStore: TweakStore
+	private var tweakStore: TweakStore
 	fileprivate unowned var delegate: TweaksCollectionsListViewControllerDelegate
 
 	// MARK: Init
@@ -66,19 +66,30 @@ internal final class TweaksCollectionsListViewController: UIViewController {
 	}
 
 	override func viewWillAppear(_ animated: Bool) {
-		super.viewDidAppear(animated)
+		super.viewWillAppear(animated)
 
 		if let selectedIndexPath = tableView.indexPathForSelectedRow {
 			tableView.deselectRow(at: selectedIndexPath, animated: true)
 		}
 	}
 
+    func display(tweakStore: TweakStore) {
+        self.tweakStore = tweakStore
+        tableView.reloadData()
+        let tweaksCollectionVc = navigationController?.viewControllers.first(where: {$0 is TweakCollectionViewController })
+        if let tweaksCollectionVc = tweaksCollectionVc as? TweakCollectionViewController {
+            tweaksCollectionVc.display(tweakStore: tweakStore)
+        }
+    }
+
 	// MARK: Events
 
 	@objc private func resetStore(_ sender: UIBarButtonItem) {
 		let confirmationAlert = UIAlertController(title: nil, message: "Reset all tweaks to their default values?", preferredStyle: .actionSheet)
 		confirmationAlert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
-		confirmationAlert.addAction(UIAlertAction(title: "Reset All Tweaks", style: .destructive, handler: { _ in self.tweakStore.reset() }))
+		confirmationAlert.addAction(UIAlertAction(title: "Reset All Tweaks", style: .destructive, handler: { _ in
+            Task { await self.tweakStore.reset() }
+        }))
 		confirmationAlert.popoverPresentationController?.barButtonItem = sender
 		present(confirmationAlert, animated: true, completion: nil)
 	}

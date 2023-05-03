@@ -47,14 +47,15 @@ internal final class TweakPersistency {
 		return tweakCache[tweakID.persistenceIdentifier]
 	}
 
-	internal func setValue(_ value: TweakableType?,  forTweakIdentifiable tweakID: TweakIdentifiable) {
+    internal func setValue(_ value: TweakableType?,  forTweakIdentifiable tweakID: TweakIdentifiable) async {
 		tweakCache[tweakID.persistenceIdentifier] = value
-		self.diskPersistency.saveToDisk(tweakCache)
+        NSLog("TweakCachechanged: \(tweakCache)")
+		await diskPersistency.saveToDisk(tweakCache)
 	}
 
-	internal func clearAllData() {
+    internal func clearAllData() async {
 		tweakCache = [:]
-		self.diskPersistency.saveToDisk(tweakCache)
+		await diskPersistency.saveToDisk(tweakCache)
 	}
 }
 
@@ -109,11 +110,14 @@ private final class TweakDiskPersistency {
 		return result
 	}
 
-	func saveToDisk(_ data: TweakCache) {
-		self.queue.async {
-			let nsData = NSKeyedArchiver.archivedData(withRootObject: Data(cache: data))
-			try! nsData.write(to: self.fileURL, options: [.atomic])
-		}
+	func saveToDisk(_ data: TweakCache) async {
+        await withCheckedContinuation { continuation in
+            self.queue.async {
+                let nsData = NSKeyedArchiver.archivedData(withRootObject: Data(cache: data))
+                try! nsData.write(to: self.fileURL, options: [.atomic])
+                continuation.resume()
+            }
+        }
 	}
 
 	/// Implements NSCoding for TweakCache.
