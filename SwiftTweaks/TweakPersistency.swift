@@ -21,11 +21,20 @@ internal typealias TweakCache = [String: TweakableType]
 internal final class TweakPersistency {
 	private let diskPersistency: TweakDiskPersistency
 
-	private var tweakCache: TweakCache = [:]
+    private let queue = DispatchQueue(label: "tweakCache.sync")
+    /// Do not use directly, aways use thread safe accessors
+	private var _tweakCache: TweakCache = [:]
+    private func value(for tweakId: String) -> TweakableType? {
+        queue.sync { _tweakCache[tweakId] }
+    }
+    private func cache(_ value: TweakableType?, for tweakId: String) {
+        queue.sync { _tweakCache[tweakId] = value }
+    }
+
 
 	init(identifier: String, appGroup: String?) {
-		self.diskPersistency = TweakDiskPersistency(identifier: identifier, appGroup: appGroup)
-		self.tweakCache = self.diskPersistency.loadFromDisk()
+		diskPersistency = TweakDiskPersistency(identifier: identifier, appGroup: appGroup)
+		_tweakCache = diskPersistency.loadFromDisk()
 	}
 
 	internal func currentValueForTweak<T>(_ tweak: Tweak<T>) -> T? {
@@ -44,17 +53,22 @@ internal final class TweakPersistency {
 	}
 
 	internal func persistedValueForTweakIdentifiable(_ tweakID: TweakIdentifiable) -> TweakableType? {
-		return tweakCache[tweakID.persistenceIdentifier]
+        value(for: tweakID.persistenceIdentifier)
 	}
 
-	internal func setValue(_ value: TweakableType?,  forTweakIdentifiable tweakID: TweakIdentifiable) {
-		tweakCache[tweakID.persistenceIdentifier] = value
-		self.diskPersistency.saveToDisk(tweakCache)
+    internal func setValue(_ value: TweakableType?,  forTweakIdentifiable tweakID: TweakIdentifiable) async {
+        cache(value, for: tweakID.persistenceIdentifier)
+        let tweakCache = queue.sync { _tweakCache }
+        NSLog("TweakCachechanged: \(tweakCache)")
+		await diskPersistency.saveToDisk(tweakCache)
 	}
 
-	internal func clearAllData() {
-		tweakCache = [:]
-		self.diskPersistency.saveToDisk(tweakCache)
+    internal func clearAllData() async {
+        let tweakCache = queue.sync {
+            _tweakCache = [:]
+            return _tweakCache
+        }
+        await diskPersistency.saveToDisk(tweakCache)
 	}
 }
 
@@ -109,11 +123,14 @@ private final class TweakDiskPersistency {
 		return result
 	}
 
-	func saveToDisk(_ data: TweakCache) {
-		self.queue.async {
-			let nsData = NSKeyedArchiver.archivedData(withRootObject: Data(cache: data))
-			try! nsData.write(to: self.fileURL, options: [.atomic])
-		}
+	func saveToDisk(_ data: TweakCache) async {
+        await withCheckedContinuation { continuation in
+            self.queue.async {
+                let nsData = NSKeyedArchiver.archivedData(withRootObject: Data(cache: data))
+                try! nsData.write(to: self.fileURL, options: [.atomic])
+                continuation.resume()
+            }
+        }
 	}
 
 	/// Implements NSCoding for TweakCache.

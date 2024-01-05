@@ -36,10 +36,13 @@ import UIKit
 
 	/// By holding on to the TweaksViewController, we get easy state restoration!
 	private var tweaksViewController: TweaksViewController! // requires self for init
+    private var isTweaksVcVisible: Bool { tweaksViewController.viewIfLoaded?.window != nil }
 
 	/// Represents the "floating tweaks UI"
 	fileprivate var floatingTweakGroupUIWindow: HitTransparentWindow?
-	fileprivate let tweakStore: TweakStore
+    private var isFloatingVcVisible: Bool { floatingTweakGroupUIWindow != nil }
+
+    private var tweakStore: TweakStore
 
 	/// We need to know if we're running in the simulator (because shake gestures don't have a time duration in the simulator)
 	private let runningInSimulator: Bool = {
@@ -50,11 +53,11 @@ import UIKit
 		#endif
 	}()
 
-	/// Whether or not the device is shaking. Used in determining when to present the Tweaks UI when the device is shaken.
-	private var shaking: Bool = false
+    /// Whether or not the device is shaking. Used in determining when to present the Tweaks UI when the device is shaken.
+    private var shaking: Bool = false
 
-	private var shouldShakePresentTweaks: Bool {
-		if tweakStore.enabled {
+    private var shouldShakePresentTweaks: Bool {
+        if tweakStore.enabled {
 			switch gestureType {
 			case .shake: return shaking || runningInSimulator
 			case .twoFingerDoubleTap, .gesture: return false
@@ -68,7 +71,7 @@ import UIKit
 
 	public init(frame: CGRect, gestureType: GestureType = .shake, tweakStore: TweakStore) {
 		self.gestureType = gestureType
-		self.tweakStore = tweakStore
+        self.tweakStore = tweakStore
 
 		super.init(frame: frame)
 
@@ -102,14 +105,22 @@ import UIKit
                 break
             }
         }
-
         tweaksViewController = TweaksViewController(tweakStore: tweakStore, delegate: self)
         tweaksViewController.floatingTweaksWindowPresenter = self
+
 	}
 
 	public required init?(coder aDecoder: NSCoder) {
 	    fatalError("init(coder:) has not been implemented")
-	}
+    }
+
+    public func set(_ tweakStore: TweakStore) {
+        self.tweakStore = tweakStore
+        tweaksViewController.display(tweakStore)
+        if let floatingVc = floatingTweakGroupUIWindow?.rootViewController as? FloatingTweakGroupViewController {
+            floatingVc.display(tweakStore)
+        }
+    }
 
 	// MARK: Shaking & Gestures
 	public override func motionBegan(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
@@ -137,14 +148,9 @@ import UIKit
 	// MARK: Presenting & Dismissing
 
 	@objc private func presentTweaks() {
-		guard let rootViewController = rootViewController else {
-			return
-		}
-
-		guard self.tweakStore.enabled else {
-			return
-		}
-
+		guard let rootViewController = rootViewController, tweakStore.enabled else {
+            return
+        }
 		var visibleViewController = rootViewController
 		while (visibleViewController.presentedViewController != nil) {
 			visibleViewController = visibleViewController.presentedViewController!
@@ -160,19 +166,13 @@ import UIKit
 			@unknown default:
 				return
 			}
-
 		}
-
-	}
-
-	fileprivate func dismissTweaks(_ completion: (() -> ())? = nil) {
-		tweaksViewController.dismiss(animated: true, completion: completion)
 	}
 }
 
 extension TweakWindow: TweaksViewControllerDelegate {
 	public func tweaksViewControllerRequestsDismiss(_ tweaksViewController: TweaksViewController, completion: (() -> ())? = nil) {
-		dismissTweaks(completion)
+        tweaksViewController.dismiss(animated: true, completion: completion)
 	}
 }
 
@@ -209,7 +209,11 @@ extension TweakWindow: FloatingTweaksWindowPresenter {
 			)
 		)
 
-		let floatingTweaksVC = FloatingTweakGroupViewController(frame: floatingTweakGroupFrame, tweakStore: tweakStore, presenter: self)
+		let floatingTweaksVC = FloatingTweakGroupViewController(
+            frame: floatingTweakGroupFrame,
+            tweakStore: tweakStore,
+            presenter: self
+        )
 		floatingTweaksVC.tweakGroup = tweakGroup
 		window.rootViewController = floatingTweaksVC
 		window.addSubview(floatingTweaksVC.view)

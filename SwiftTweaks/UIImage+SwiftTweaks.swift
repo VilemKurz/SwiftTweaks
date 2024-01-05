@@ -28,7 +28,11 @@ internal extension UIImage {
 		#if SWIFT_PACKAGE
 		self.init(named: imageName, in: Bundle.module, compatibleWith: nil)
 		#else
-		self.init(named: imageName, in: Bundle(for: TweakTableCell.self), compatibleWith: nil) // NOTE (bryan): Could've used any class in SwiftTweaks here.
+        let mainBundle = Bundle.main
+        let resourceUrl = mainBundle.url(forResource: "SwiftTweaks", withExtension: "bundle")!
+        let swiftTweaksResourceBundle = Bundle(url: resourceUrl)
+        self.init(named: imageName, in: swiftTweaksResourceBundle, compatibleWith: nil)
+		//self.init(named: imageName, in: Bundle(for: TweakTableCell.self), compatibleWith: nil) // NOTE (bryan): Could've used any class in SwiftTweaks here.
 		#endif
 	}
 

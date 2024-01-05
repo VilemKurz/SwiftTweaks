@@ -41,7 +41,7 @@ public extension TweakLibraryType {
 		self.defaultStore.unbindMultiple(identifier)
 	}
 	
-	static func overrideValue<T>(_ tweak: Tweak<T>, value: T?) {
-		self.defaultStore.setValue(value, forTweak: tweak)
+	static func overrideValue<T>(_ tweak: Tweak<T>, value: T?) async {
+        await defaultStore.setValue(value, forTweak: tweak)
 	}
 }

@@ -15,8 +15,8 @@ internal protocol TweakCollectionViewControllerDelegate: AnyObject {
 
 /// Displays the contents of a TweakCollection in a table - each child TweakGroup gets a section, each Tweak<T> gets a cell.
 internal final class TweakCollectionViewController: UIViewController {
-	fileprivate let tweakCollection: TweakCollection
-	fileprivate let tweakStore: TweakStore
+	private var tweakCollection: TweakCollection
+	private var tweakStore: TweakStore
 
 	fileprivate unowned var delegate: TweakCollectionViewControllerDelegate
 
@@ -80,6 +80,14 @@ internal final class TweakCollectionViewController: UIViewController {
 		self.hapticsPlayer.prepare()
 	}
 
+    func display(tweakStore: TweakStore) {
+        guard tweakStore.sortedTweakCollections.contains(where: { $0.title == tweakCollection.title }) else {
+            navigationController?.popViewController(animated: true)
+            return
+        }
+        self.tweakStore = tweakStore
+        tableView.animatedReloadData()
+    }
 
 	// MARK: Events
 
@@ -112,8 +120,10 @@ internal final class TweakCollectionViewController: UIViewController {
 			fatalError("Can't update non-string-list tweak here.")
 		}
 		let newViewData = TweakViewData.stringList(value: toValue, defaultValue: tweakDefault, options: tweakOptions)
-		self.tweakStore.setValue(newViewData, forTweak: tweak)
-		self.tableView.reloadData()
+        Task {
+            await self.tweakStore.setValue(newViewData, forTweak: tweak)
+            await MainActor.run { self.tableView.reloadData() }
+        }
 	}
 
 	// MARK: Table Cells
@@ -193,15 +203,12 @@ extension TweakCollectionViewController: UITableViewDataSource {
 }
 
 extension TweakCollectionViewController: TweakTableCellDelegate {
-	func tweakCellDidChangeCurrentValue(_ tweakCell: TweakTableCell) {
-		if
-			let indexPath = tableView.indexPath(for: tweakCell),
-			let viewData = tweakCell.viewData
-		{
-			let tweak = tweakAtIndexPath(indexPath)
-			tweakStore.setValue(viewData, forTweak: tweak)
-		}
-	}
+    func tweakCellDidChangeCurrentValue(_ tweakCell: TweakTableCell) {
+        if let indexPath = tableView.indexPath(for: tweakCell), let viewData = tweakCell.viewData {
+            let tweak = tweakAtIndexPath(indexPath)
+            Task { await self.tweakStore.setValue(viewData, forTweak: tweak) }
+        }
+    }
 }
 
 extension TweakCollectionViewController: TweakColorEditViewControllerDelegate {
@@ -306,4 +313,11 @@ fileprivate final class TweakGroupSectionHeader: UITableViewHeaderFooterView {
 	@objc private func floatingButtonTapped() {
 		delegate!.tweakGroupSectionHeaderDidPressFloatingButton(self)
 	}
+}
+
+extension UITableView {
+    func animatedReloadData() {
+        let indexSet = IndexSet(integersIn: 0..<numberOfSections)
+        reloadSections(indexSet, with: UITableView.RowAnimation.automatic)
+    }
 }

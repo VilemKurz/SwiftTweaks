@@ -16,7 +16,7 @@ public protocol TweaksViewControllerDelegate: AnyObject {
 /// You can init and present TweaksViewController yourself, if you'd prefer to not use TweakWindow.
 public final class TweaksViewController: UIViewController {
 
-	private let tweakStore: TweakStore
+	private var tweakStore: TweakStore
 
 	private var navController: UINavigationController! // self required for init
 
@@ -37,6 +37,13 @@ public final class TweaksViewController: UIViewController {
 		addChild(navController)
 		navController.didMove(toParent: self)
 	}
+
+    func display(_ tweakStore: TweakStore) {
+        self.tweakStore = tweakStore
+        if let tweaksRootVC = navController.viewControllers[0] as? TweaksCollectionsListViewController {
+            tweaksRootVC.display(tweakStore: tweakStore)
+        }
+    }
 
 	public required init?(coder aDecoder: NSCoder) {
 		fatalError("init(coder:) has not been implemented")
